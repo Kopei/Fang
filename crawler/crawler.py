@@ -8,83 +8,87 @@ from pymongo import MongoClient
 client = MongoClient()
 db = client.map
 urlBase = 'http://sh.lianjia.com/xiaoqu'
+ershoufangURL = 'http://sh.lianjia.com/ershoufang/'
 shRegions = [
     {
-        "name": "pudongxinqu",
-        "cname": "浦东",
-    }, {
-        "name": "minhang",
-        "cname": "闵行",
-    }, {
-        "name": "baoshan",
-        "cname": "宝山",
-    }, {
-        "name": "xuhui",
-        "cname": "徐汇",
-    }, {
-        "name": "putuo",
-        "cname": "普陀",
-    }, {
-        "name": "yangpu",
-        "cname": "杨浦",
-    }, {
-        "name": "changning",
-        "cname": "长宁",
-    }, {
-        "name": "songjiang",
-        "cname": "松江",
-    }, {
-        "name": "jiading",
-        "cname": "嘉定",
-    }, {
-        "name": "jingan",
-        "cname": "静安",
-    }, {
-        "name": "huangpu",
-        "cname": "黄浦",
-    }, {
-        "name": "hongkou",
-        "cname": "虹口",
-    }, {
-        "name": "zhabei",
-        "cname": "闸北",
-    }, {
-        "name": "qingpu",
-        "cname": "青浦",
-    }, {
-        "name": "fengxian",
-        "cname": "奉贤",
-    }, {
-        "name": "jinshan",
-        "cname": "金山",
-    }, {
-        "name": "chongming",
-        "cname": "崇明",
-    }]
+        "name": "pudong",
+        "cname": "浦东",}]
+    # }, {
+    #     "name": "minhang",
+    #     "cname": "闵行",
+    #     }]
+    # }, {
+    #     "name": "baoshan",
+    #     "cname": "宝山",
+    # }, {
+    #     "name": "xuhui",
+    #     "cname": "徐汇",
+    # }, {
+    #     "name": "putuo",
+    #     "cname": "普陀",
+    # }, {
+    #     "name": "yangpu",
+    #     "cname": "杨浦",
+    # }, {
+    #     "name": "changning",
+    #     "cname": "长宁",
+    # }, {
+    #     "name": "songjiang",
+    #     "cname": "松江",
+    # }, {
+    #     "name": "jiading",
+    #     "cname": "嘉定",
+    # }, {
+    #     "name": "jingan",
+    #     "cname": "静安",
+    # }, {
+    #     "name": "huangpu",
+    #     "cname": "黄浦",
+    # }, {
+    #     "name": "hongkou",
+    #     "cname": "虹口",
+    # }, {
+    #     "name": "zhabei",
+    #     "cname": "闸北",
+    # }, {
+    #     "name": "qingpu",
+    #     "cname": "青浦",
+    # }, {
+    #     "name": "fengxian",
+    #     "cname": "奉贤",
+    # }, {
+    #     "name": "jinshan",
+    #     "cname": "金山",
+    # }, {
+    #     "name": "chongming",
+    #     "cname": "崇明",
+    # }]
 
 
 def crawler():
     for i in range(0, len(shRegions)):
         print '开始遍历:' + shRegions[i]['name']
-        url = urlBase + '/' + shRegions[i]['name'] 
+        url = urlBase + '/' + shRegions[i]['name']
+        print('crawler url is %s' %url)
         response = urllib2.urlopen(url)
         page = getTotalPage(response.read())
         pageNum = int(page)
         for j in range(0, pageNum):
-            url = urlBase + '/' + shRegions[i]['name'] + '/d' + str(j + 1)
+            url = urlBase + '/' + shRegions[i]['name'] + '/pg' + str(j + 1)
             print('开始遍历第' + str(j + 1) + '页')
             response = urllib2.urlopen(url)
             zoneCID = getZoneCID(response.read())
             for zoneID in zoneCID:
                 try:
-                    zoneUrl = urlBase + "/" + zoneID + ".html"
+                    zoneUrl = urlBase + "/" + zoneID
                     print('开始查询小区:' + zoneUrl)
                     zoneResponse = urllib2.urlopen(zoneUrl).read()
                     zoneInfo = getZoneInfo(zoneResponse)
                     if zoneInfo is None:
                         continue
                     print zoneInfo[1]
-                    houseForSale = getAmountForSale(zoneResponse)
+                    #houseForSale = getAmountForSale(zoneResponse)
+                    houseForSale = getErShouFang(zoneID)
                     # totalAmount = getTotalAmount(zoneResponse)
                     zoneData = getZonePrice(zoneResponse, zoneID)
 
@@ -112,11 +116,25 @@ def crawler():
                 except Exception, err:
                     print Exception, ":", err
 
+def getErShouFang(zoneID):
+    zoneUrl = ershoufangURL + 'c'+ zoneID
+    print('开始查询小区二手房数量:' + zoneUrl)
+    zoneResponse = urllib2.urlopen(zoneUrl).read()
+    result = re.search(r"共找到\b(d+)\b套上海二手房", zoneResponse)
+    amount = 0
+    if result is not None:
+        amount = result.group(1)
+    else:
+        print("在售二手房总数解析错误: ")
+    return amount
+
 def getTotalPage(response):
     pageNum = 0
-    result = re.search(r'gahref="results_totalpage".*?(\d+)', response)
+    print('lianjia response is %s' %response)
+    result = re.search(r'"totalPage":(\d+)', response)
     if result is not None:
         pageNum = result.group(1)
+    print('get pageNum is %s' % pageNum)
     return pageNum
 
 def getZoneCID(response):
@@ -130,10 +148,12 @@ def getZoneCID(response):
 
 def getZoneInfo(response):
     data = None
-    result = re.search(r"<h1>(.{2,50})<\/h1>", response)
+    result = re.search(r"<h1 .*>(.{2,50})<\/h1>", response)
+    print(result)
     if result is not None:
         name = result.group(1)
-        result = re.search(r"xiaoqu=\"\[(.*),(.*),.*\]", response)
+        result = re.search(r'resblockPosition:\'(.*),(.*)\'', response)
+        print(result)
         if result is not None:
             x = result.group(1).strip()
             y = result.group(2).strip()
